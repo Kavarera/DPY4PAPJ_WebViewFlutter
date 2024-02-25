@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
-import 'package:ujianku/widgets/qrview.dart';
+import 'package:ujianku/widgets/confrimation_exit_widget.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class WebViewMain extends StatefulWidget {
-  const WebViewMain({super.key});
+  final String targetURLParams;
+
+  const WebViewMain({super.key, required this.targetURLParams});
 
   @override
   State<WebViewMain> createState() => _WebViewMainState();
@@ -13,21 +16,17 @@ class WebViewMain extends StatefulWidget {
 class _WebViewMainState extends State<WebViewMain> with WidgetsBindingObserver {
   final wvController = WebViewController();
   final wvcm = WebViewCookieManager();
-  bool qrScanned = false;
-  late QRViewController qrController;
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  String targetUrl = "https://ujianmu.my.id";
+  String targetURL = "";
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    print(state);
-
     switch (state) {
       case AppLifecycleState.paused:
         wvcm.clearCookies();
@@ -49,17 +48,17 @@ class _WebViewMainState extends State<WebViewMain> with WidgetsBindingObserver {
   void dispose() {
     // TODO: implement dispose
     WidgetsBinding.instance.removeObserver(this);
-    qrController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    targetURL = widget.targetURLParams;
     wvController.setJavaScriptMode(JavaScriptMode.unrestricted);
     wvController.clearCache();
     wvController.clearLocalStorage();
     wvcm.clearCookies();
-    wvController.loadRequest(Uri.parse(targetUrl));
+    wvController.loadRequest(Uri.parse(targetURL));
     return PopScope(
       canPop: false,
       onPopInvoked: (bool dipdop) async {
@@ -69,59 +68,81 @@ class _WebViewMainState extends State<WebViewMain> with WidgetsBindingObserver {
       },
       child: SafeArea(
         child: Scaffold(
-          appBar: AppBar(
-            actions: [
-              IconButton(
-                  onPressed: () {
-                    setState(() {
-                      qrScanned = !qrScanned;
-                    });
-                  },
-                  icon: const Icon(
-                    Icons.qr_code_scanner,
-                    color: Colors.black,
-                  )),
-              IconButton(
-                  onPressed: () {
-                    wvController.reload();
-                  },
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: Colors.black,
-                  ))
-            ],
-          ),
           body: Stack(
             children: [
               WebViewWidget(
                 controller: wvController,
               ),
-              Visibility(
-                visible: qrScanned,
-                child: QRView(
-                  key: qrKey,
-                  onQRViewCreated: (controller) {
-                    this.qrController = controller;
-                    controller.scannedDataStream.listen((event) {
-                      setState(() {
-                        qrScanned = false;
-                        targetUrl = event.code!;
-                      });
-
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(event.code!),
-                        duration: Duration(seconds: 1),
-                      ));
-
-                      wvController.loadRequest(Uri.parse(targetUrl));
-                    });
-                  },
-                  overlay: QrScannerOverlayShape(
-                      borderColor: Colors.white,
-                      borderWidth: 10,
-                      borderLength: 10,
-                      borderRadius: 20,
-                      cutOutSize: MediaQuery.of(context).size.width * 0.8),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.all(
+                      Radius.elliptical(20, 30),
+                    ),
+                    child: BottomNavigationBar(
+                      selectedItemColor: Colors.white,
+                      unselectedItemColor: Colors.white,
+                      showSelectedLabels: true,
+                      elevation: 25,
+                      showUnselectedLabels: true,
+                      backgroundColor: Colors.black,
+                      type: BottomNavigationBarType.fixed,
+                      onTap: (int index) async {
+                        switch (index) {
+                          case 0:
+                            final result = await showDialog<bool>(
+                                context: context,
+                                builder: (context) =>
+                                    const ConfirmationExitWidget());
+                            if (result == true) {
+                              Navigator.pop(context);
+                            }
+                            break;
+                          case 1:
+                            wvController.reload();
+                            break;
+                          case 2:
+                            wvController.goBack();
+                            print("Go backward");
+                            break;
+                          case 3:
+                            wvController.goForward();
+                            print("Go forward");
+                            break;
+                          default:
+                            break;
+                        }
+                      },
+                      items: const [
+                        BottomNavigationBarItem(
+                          icon: Icon(
+                            Icons.exit_to_app_sharp,
+                          ),
+                          label: "Exit",
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(
+                            Icons.refresh,
+                          ),
+                          label: "Refresh",
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_sharp,
+                          ),
+                          label: "Backward",
+                        ),
+                        BottomNavigationBarItem(
+                          icon: Icon(
+                            Icons.arrow_forward_ios_sharp,
+                          ),
+                          label: "Forward",
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             ],
